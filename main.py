@@ -36,7 +36,7 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # --- Course Data ---
-# If you don't have an ID yet, use 0. DO NOT leave it blank like "mat_msg_id": }
+# If you don't have an ID yet, use 0. DO NOT leave it blank.
 COURSES = {
     "c_gsssb": {
         "name": "GSSSB Non-Tech",
@@ -64,7 +64,6 @@ COURSES = {
 # --- Database Functions ---
 async def init_db(pool):
     async with pool.acquire() as conn:
-        # 1. Create tables if they don't exist
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
@@ -75,7 +74,6 @@ async def init_db(pool):
                 count INT DEFAULT 0
             );
         ''')
-        # 2. Patch the missing column issue dynamically
         try:
             await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name TEXT;')
         except Exception as e:
@@ -112,7 +110,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    welcome_text = fr"👋 Welcome, {escape_markdown(user.first_name, 2)}\!\n\nPlease select a course category below to begin:"
+    welcome_text = f"👋 Welcome, {escape_markdown(user.first_name, 2)}\\!\\n\\nPlease select a course category below to begin\\:"
     
     if update.callback_query:
         await update.callback_query.edit_message_text(welcome_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN_V2)
@@ -133,7 +131,7 @@ async def course_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     keyboard = [[InlineKeyboardButton(subj["name"], callback_data=f"subj_{course_key}_{sk}")] for sk, subj in course["subjects"].items()]
     keyboard.append([InlineKeyboardButton("⬅️ Back to Main Menu", callback_data="main_menu")])
     
-    text = fr"📚 *{escape_markdown(course['name'], 2)}*\n\nSelect a subject to view demos or materials:"
+    text = f"📚 *{escape_markdown(course['name'], 2)}*\\n\\nSelect a subject to view demos or materials\\:"
     await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN_V2)
     return SELECTING_ACTION
 
@@ -154,7 +152,9 @@ async def subject_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         [InlineKeyboardButton("💬 Talk to Admin", callback_data="talk_admin")],
         [InlineKeyboardButton("⬅️ Back to Subjects", callback_data=course_key)]
     ]
-    text = fr"📘 *{escape_markdown(course['name'], 2)} > {escape_markdown(subject['name'], 2)}*\n\nChoose an action below:"
+    
+    # CRITICAL FIX: The '>' character is now properly escaped as '\>'
+    text = f"📘 *{escape_markdown(course['name'], 2)} \\> {escape_markdown(subject['name'], 2)}*\\n\\nChoose an action below\\:"
     await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN_V2)
     return SELECTING_ACTION
 
@@ -179,49 +179,65 @@ async def handle_buy_or_admin(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     await query.answer()
     if query.data == "talk_admin":
-        await query.edit_message_text(text=r"Please type your message and send it\. I will forward it to the admin\.", parse_mode=ParseMode.MARKDOWN_V2)
+        await query.edit_message_text(text="Please type your message and send it\\. I will forward it to the admin\\.", parse_mode=ParseMode.MARKDOWN_V2)
         return FORWARD_TO_ADMIN
     elif query.data == "buy_course":
         course = context.user_data['selected_course']
         keyboard = [[InlineKeyboardButton(f"💳 Pay ₹{course['price']} Now", url=RAZORPAY_LINK)],
                     [InlineKeyboardButton("✅ Already Paid? Share Screenshot", callback_data="share_screenshot")],
                     [InlineKeyboardButton("⬅️ Back", callback_data=context.user_data['back_to_course_key'])]]
-        buy_text = fr"✅ *Purchase {escape_markdown(course['name'], 2)}*\n\n*Price: ₹{course['price']}*\n\nPay via Razorpay and share your screenshot here\."
+        buy_text = f"✅ *Purchase {escape_markdown(course['name'], 2)}*\\n\\n*Price\\: ₹{course['price']}*\\n\\nPay via Razorpay and share your screenshot here\\."
         await query.edit_message_text(text=buy_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN_V2)
         return SELECTING_ACTION
     elif query.data == "share_screenshot":
-        await query.edit_message_text(text=r"Please send the screenshot of your payment now\.", parse_mode=ParseMode.MARKDOWN_V2)
+        await query.edit_message_text(text="Please send the screenshot of your payment now\\.", parse_mode=ParseMode.MARKDOWN_V2)
         return FORWARD_SCREENSHOT
 
 async def forward_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user, course = update.effective_user, context.user_data.get('selected_course', {'name': 'General Query'})
-    text = fr"📩 *New Message*\nFrom: {escape_markdown(user.first_name, 2)} \(ID: `{user.id}`\)\nContext: *{escape_markdown(course['name'], 2)}*\n\n{escape_markdown(update.message.text, 2)}"
+    text = f"📩 *New Message*\\nFrom\\: {escape_markdown(user.first_name, 2)} \\(ID\\: `{user.id}`\\)\\nContext\\: *{escape_markdown(course['name'], 2)}*\\n\\n{escape_markdown(update.message.text, 2)}"
     await context.bot.send_message(chat_id=ADMIN_ID, text=text, parse_mode=ParseMode.MARKDOWN_V2)
-    await update.message.reply_text(r"✅ Message sent to admin\.", parse_mode=ParseMode.MARKDOWN_V2)
+    await update.message.reply_text("✅ Message sent to admin\\.", parse_mode=ParseMode.MARKDOWN_V2)
     return await start(update, context)
 
 async def forward_screenshot_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user, course = update.effective_user, context.user_data.get('selected_course', {'name': 'Unknown'})
-    caption = fr"📸 *Payment Screenshot*\nFrom: {escape_markdown(user.first_name, 2)} \(ID: `{user.id}`\)\nCourse: *{escape_markdown(course['name'], 2)}*\n\nReply to this with the private link\."
+    caption = f"📸 *Payment Screenshot*\\nFrom\\: {escape_markdown(user.first_name, 2)} \\(ID\\: `{user.id}`\\)\\nCourse\\: *{escape_markdown(course['name'], 2)}*\\n\\nReply to this with the private link\\."
     await context.bot.send_photo(chat_id=ADMIN_ID, photo=update.message.photo[-1].file_id, caption=caption, parse_mode=ParseMode.MARKDOWN_V2)
-    await update.message.reply_text(r"✅ Screenshot received\. Admin will review it shortly\.", parse_mode=ParseMode.MARKDOWN_V2)
+    await update.message.reply_text("✅ Screenshot received\\. Admin will review it shortly\\.", parse_mode=ParseMode.MARKDOWN_V2)
     return await start(update, context)
 
 async def reply_to_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != ADMIN_ID or not update.message.reply_to_message: return
     orig = update.message.reply_to_message.text or update.message.reply_to_message.caption
     if orig and "(ID: " in orig:
-        user_id = int(orig.split("(ID: ")[1].split(")")[0].replace('`', ''))
-        text = fr"👑 *Admin replied:*\n\n{escape_markdown(update.message.text, 2)}\n\n\-\-\-\n_Reply to this message to chat back\._"
-        await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.MARKDOWN_V2)
-        await update.message.reply_text("✅ Reply sent.")
+        try:
+            user_id = int(orig.split("(ID: ")[1].split(")")[0].replace('`', ''))
+            text = f"👑 *Admin replied\\:*\\n\\n{escape_markdown(update.message.text, 2)}\\n\\n\\-\\-\\-\\n_Reply to this message to chat back\\._"
+            await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.MARKDOWN_V2)
+            await update.message.reply_text("✅ Reply sent.")
+        except Exception as e:
+            logger.error(f"Error extracting user ID: {e}")
 
 async def handle_user_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     replied = update.message.reply_to_message
-    if replied and replied.from_user.is_bot and "Admin replied:" in (replied.text or ""):
-        text = fr"↪️ *Follow\-up* from {escape_markdown(update.effective_user.first_name, 2)} \(ID: `{update.effective_user.id}`\):\n\n{escape_markdown(update.message.text, 2)}"
+    if replied and replied.from_user.is_bot and "Admin replied" in (replied.text or ""):
+        text = f"↪️ *Follow\\-up* from {escape_markdown(update.effective_user.first_name, 2)} \\(ID\\: `{update.effective_user.id}`\\)\\:\\n\\n{escape_markdown(update.message.text, 2)}"
         await context.bot.send_message(chat_id=ADMIN_ID, text=text, parse_mode=ParseMode.MARKDOWN_V2)
-        await update.message.reply_text("✅ Reply sent.")
+        await update.message.reply_text("✅ Reply sent to admin.")
+
+async def show_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id != ADMIN_ID: return
+    pool = context.bot_data['db_pool']
+    async with pool.acquire() as conn:
+        user_count = await conn.fetchval("SELECT COUNT(*) FROM users")
+        stats = await conn.fetch("SELECT action, count FROM stats ORDER BY count DESC")
+    
+    text = f"📊 *Database Stats*\\n\\n*Total Registered Users\\:* `{user_count}`\\n\\n*Interactions\\:*\\n"
+    for row in stats:
+        text += f"\\- {escape_markdown(row['action'], 2)}\\: `{row['count']}`\\n"
+        
+    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2)
 
 async def post_init(application: Application):
     if DATABASE_URL:
@@ -249,6 +265,7 @@ def main() -> None:
         fallbacks=[CommandHandler("start", start)],
     )
     application.add_handler(conv)
+    application.add_handler(CommandHandler("stats", show_stats))
     application.add_handler(MessageHandler(filters.REPLY & filters.User(ADMIN_ID), reply_to_user))
     application.add_handler(MessageHandler(filters.REPLY & ~filters.COMMAND, handle_user_reply))
     application.run_polling()
