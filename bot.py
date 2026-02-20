@@ -42,21 +42,21 @@ COURSES = {
         "name": "GSSSB Non-Tech",
         "price": 499,
         "subjects": {
-            "s_maths": {"name": "Maths", "vid_msg_id": 10, "mat_msg_id": 11},
-            "s_reason": {"name": "Reasoning", "vid_msg_id": 12, "mat_msg_id": 13},
-            "s_polity": {"name": "Polity", "vid_msg_id": 14, "mat_msg_id": 15},
-            "s_env": {"name": "Environment", "vid_msg_id": 16, "mat_msg_id": 17},
-            "s_lang": {"name": "Language", "vid_msg_id": 18, "mat_msg_id": 19}
+            "s_maths": {"name": "Maths", "vid_msg_id": 3, "mat_msg_id": 99},
+            "s_reason": {"name": "Reasoning", "vid_msg_id": 33, "mat_msg_id": 100},
+            "s_polity": {"name": "Polity", "vid_msg_id": 47, "mat_msg_id": },
+            "s_env": {"name": "Environment", "vid_msg_id": 58, "mat_msg_id": 17},
+            "s_lang": {"name": "Language", "vid_msg_id": 62, "mat_msg_id": 19}
         }
     },
     "c_gpsc": {
         "name": "GPSC AE Civil",
         "price": 999,
         "subjects": {
-            "s_survey": {"name": "Surveying", "vid_msg_id": 20, "mat_msg_id": 21},
-            "s_enve": {"name": "Environment Engg", "vid_msg_id": 22, "mat_msg_id": 23},
-            "s_bim": {"name": "BIM", "vid_msg_id": 24, "mat_msg_id": 25},
-            "s_ecv": {"name": "ECV", "vid_msg_id": 26, "mat_msg_id": 27}
+            "s_survey": {"name": "Surveying", "vid_msg_id": 68, "mat_msg_id": 21},
+            "s_enve": {"name": "Environment Engg", "vid_msg_id": 81, "mat_msg_id": 23},
+            "s_bim": {"name": "BIM", "vid_msg_id": 66, "mat_msg_id": 25},
+            "s_ecv": {"name": "ECV", "vid_msg_id": 26, "mat_msg_id": 86}
         }
     }
 }
