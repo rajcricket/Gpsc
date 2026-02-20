@@ -44,7 +44,7 @@ COURSES = {
         "subjects": {
             "s_maths": {"name": "Maths", "vid_msg_id": 3, "mat_msg_id": 99},
             "s_reason": {"name": "Reasoning", "vid_msg_id": 33, "mat_msg_id": 100},
-            "s_polity": {"name": "Polity", "vid_msg_id": 47, "mat_msg_id": },
+            "s_polity": {"name": "Polity", "vid_msg_id": 47, "mat_msg_id": 1},
             "s_env": {"name": "Environment", "vid_msg_id": 58, "mat_msg_id": 17},
             "s_lang": {"name": "Language", "vid_msg_id": 62, "mat_msg_id": 19}
         }
