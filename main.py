@@ -1,13 +1,12 @@
 import os
 import logging
 import threading
-import re
+import html
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 import asyncpg
 from telegram.constants import ParseMode
-from telegram.helpers import escape_markdown
 
 # --- Web Server for Render Health Checks ---
 class HealthCheckHandler(BaseHTTPRequestHandler):
@@ -107,15 +106,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         [InlineKeyboardButton(COURSES["c_gsssb"]["name"], callback_data="c_gsssb")],
         [InlineKeyboardButton(COURSES["c_gpsc"]["name"], callback_data="c_gpsc")]
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
     
-    welcome_text = f"👋 Welcome, {escape_markdown(user.first_name, 2)}\\!\\n\\nPlease select a course category below to begin\\:"
+    welcome_text = f"👋 Welcome, <b>{html.escape(user.first_name)}</b>!\n\nPlease select a course category below to begin:"
     
     if update.callback_query:
-        await update.callback_query.edit_message_text(welcome_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN_V2)
+        await update.callback_query.edit_message_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     else:
-        await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     return SELECTING_ACTION
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Allows the user to cancel any input state via /cancel"""
+    await update.message.reply_text("Action cancelled. Returning to main menu.")
+    return await start(update, context)
 
 async def course_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
@@ -130,8 +133,8 @@ async def course_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     keyboard = [[InlineKeyboardButton(subj["name"], callback_data=f"subj_{course_key}_{sk}")] for sk, subj in course["subjects"].items()]
     keyboard.append([InlineKeyboardButton("⬅️ Back to Main Menu", callback_data="main_menu")])
     
-    text = f"📚 *{escape_markdown(course['name'], 2)}*\\n\\nSelect a subject to view demos or materials\\:"
-    await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN_V2)
+    text = f"📚 <b>{html.escape(course['name'])}</b>\n\nSelect a subject to view demos or materials:"
+    await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     return SELECTING_ACTION
 
 async def subject_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -152,8 +155,8 @@ async def subject_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         [InlineKeyboardButton("⬅️ Back to Subjects", callback_data=course_key)]
     ]
     
-    text = f"📘 *{escape_markdown(course['name'], 2)} \\> {escape_markdown(subject['name'], 2)}*\\n\\nChoose an action below\\:"
-    await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN_V2)
+    text = f"📘 <b>{html.escape(course['name'])} &gt; {html.escape(subject['name'])}</b>\n\nChoose an action below:"
+    await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     return SELECTING_ACTION
 
 async def send_demo_content(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -167,11 +170,12 @@ async def send_demo_content(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await query.message.reply_text("Admin hasn't configured the demo links yet.")
     else:
         try:
+            # THIS SINGLE LINE PREVENTS FORWARDING AND DOWNLOADING 
             await context.bot.copy_message(
                 chat_id=update.effective_chat.id, 
                 from_chat_id=CHANNEL_ID, 
                 message_id=msg_id,
-                protect_content=True # <-- MAGIC BULLET: Prevents Forwarding and Downloading!
+                protect_content=True 
             )
         except Exception as e:
             logger.error(f"Copy failed: {e}")
@@ -182,43 +186,50 @@ async def handle_buy_or_admin(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     await query.answer()
     if query.data == "talk_admin":
-        await query.edit_message_text(text="Please type your message and send it\\. I will forward it to the admin\\.", parse_mode=ParseMode.MARKDOWN_V2)
+        await query.edit_message_text(text="Please type your message and send it. I will forward it to the admin.", parse_mode=ParseMode.HTML)
         return FORWARD_TO_ADMIN
     elif query.data == "buy_course":
         course = context.user_data['selected_course']
         keyboard = [[InlineKeyboardButton(f"💳 Pay ₹{course['price']} Now", url=RAZORPAY_LINK)],
                     [InlineKeyboardButton("✅ Already Paid? Share Screenshot", callback_data="share_screenshot")],
                     [InlineKeyboardButton("⬅️ Back", callback_data=context.user_data['back_to_course_key'])]]
-        buy_text = f"✅ *Purchase {escape_markdown(course['name'], 2)}*\\n\\n*Price\\: ₹{course['price']}*\\n\\nPay via Razorpay and share your screenshot here\\."
-        await query.edit_message_text(text=buy_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN_V2)
+        buy_text = f"✅ <b>Purchase {html.escape(course['name'])}</b>\n\n<b>Price: ₹{course['price']}</b>\n\nPay via Razorpay and share your screenshot here."
+        await query.edit_message_text(text=buy_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         return SELECTING_ACTION
     elif query.data == "share_screenshot":
-        await query.edit_message_text(text="Please send the screenshot of your payment now\\.", parse_mode=ParseMode.MARKDOWN_V2)
+        await query.edit_message_text(text="Please send the screenshot of your payment now.", parse_mode=ParseMode.HTML)
         return FORWARD_SCREENSHOT
 
-# --- PLAIN TEXT 2-WAY CHAT (CRASH PROOF) ---
+# --- Secure Input Handlers ---
+async def wrong_input_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await update.message.reply_text("⚠️ Please type a text message, or send /cancel to go back to the menu.")
+    return FORWARD_TO_ADMIN
+
+async def wrong_input_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await update.message.reply_text("⚠️ Please upload a photo screenshot, or send /cancel to go back to the menu.")
+    return FORWARD_SCREENSHOT
+
 async def forward_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     course = context.user_data.get('selected_course', {'name': 'General Query'})
     
-    # We use pure string formatting (NO ParseMode) to ensure it never crashes on weird user input
-    text = f"📩 New Message\nFrom: {user.first_name} (ID: {user.id})\nContext: {course['name']}\n\nMessage:\n{update.message.text}"
-    await context.bot.send_message(chat_id=ADMIN_ID, text=text)
+    text = f"📩 <b>New Message</b>\nFrom: {html.escape(user.first_name)} (ID: <code>{user.id}</code>)\nContext: <b>{html.escape(course['name'])}</b>\n\nMessage:\n{html.escape(update.message.text)}"
+    await context.bot.send_message(chat_id=ADMIN_ID, text=text, parse_mode=ParseMode.HTML)
     
-    await update.message.reply_text("✅ Message sent to admin.")
+    await update.message.reply_text("✅ Message sent to admin. They will reply to you here shortly.")
     return await start(update, context)
 
 async def forward_screenshot_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     course = context.user_data.get('selected_course', {'name': 'Unknown'})
     
-    # Pure string, no markdown risk
-    caption = f"📸 Payment Screenshot\nFrom: {user.first_name} (ID: {user.id})\nCourse: {course['name']}\n\nReply to this with the private link."
-    await context.bot.send_photo(chat_id=ADMIN_ID, photo=update.message.photo[-1].file_id, caption=caption)
+    caption = f"📸 <b>Payment Screenshot</b>\nFrom: {html.escape(user.first_name)} (ID: <code>{user.id}</code>)\nCourse: <b>{html.escape(course['name'])}</b>\n\nReply to this message to send the course link."
+    await context.bot.send_photo(chat_id=ADMIN_ID, photo=update.message.photo[-1].file_id, caption=caption, parse_mode=ParseMode.HTML)
     
-    await update.message.reply_text("✅ Screenshot received. Admin will review it shortly.")
+    await update.message.reply_text("✅ Screenshot received. The admin will verify it and send you the access link soon.")
     return await start(update, context)
 
+# --- 2-Way Chat (Admin to User) ---
 async def reply_to_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != ADMIN_ID or not update.message.reply_to_message: return
     orig = update.message.reply_to_message.text or update.message.reply_to_message.caption
@@ -226,22 +237,21 @@ async def reply_to_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if orig and "(ID: " in orig:
         try:
             user_id = int(orig.split("(ID: ")[1].split(")")[0].replace('`', ''))
-            # Pure text, no markdown format crashes
-            text = f"👑 Admin replied:\n\n{update.message.text}\n\n---\nReply to this message to chat back."
-            await context.bot.send_message(chat_id=user_id, text=text)
-            await update.message.reply_text("✅ Reply sent.")
+            text = f"👑 <b>Admin replied:</b>\n\n{html.escape(update.message.text)}\n\n---\n<i>You can reply to this message to chat back.</i>"
+            await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
+            await update.message.reply_text("✅ Reply sent successfully.")
         except Exception as e:
             logger.error(f"Error extracting user ID: {e}")
+            await update.message.reply_text("❌ Failed to parse User ID.")
 
 async def handle_user_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     replied = update.message.reply_to_message
-    if replied and replied.from_user.is_bot and "Admin replied" in (replied.text or ""):
-        # Pure text, no markdown
-        text = f"↪️ Follow-up from {update.effective_user.first_name} (ID: {update.effective_user.id}):\n\n{update.message.text}"
-        await context.bot.send_message(chat_id=ADMIN_ID, text=text)
-        await update.message.reply_text("✅ Reply sent to admin.")
+    if replied and replied.from_user.is_bot and "Admin replied:" in (replied.text or ""):
+        text = f"↪️ <b>Follow-up</b> from {html.escape(update.effective_user.first_name)} (ID: <code>{update.effective_user.id}</code>):\n\n{html.escape(update.message.text)}"
+        await context.bot.send_message(chat_id=ADMIN_ID, text=text, parse_mode=ParseMode.HTML)
+        await update.message.reply_text("✅ Your reply has been sent to the admin.")
 
-# --- Stats & Boot ---
+# --- System & Setup ---
 async def show_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != ADMIN_ID: return
     pool = context.bot_data['db_pool']
@@ -249,11 +259,23 @@ async def show_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         user_count = await conn.fetchval("SELECT COUNT(*) FROM users")
         stats = await conn.fetch("SELECT action, count FROM stats ORDER BY count DESC")
     
-    text = f"📊 *Database Stats*\\n\\n*Total Registered Users\\:* `{user_count}`\\n\\n*Interactions\\:*\\n"
+    text = f"📊 <b>Database Stats</b>\n\n<b>Total Registered Users:</b> <code>{user_count}</code>\n\n<b>Interactions:</b>\n"
     for row in stats:
-        text += f"\\- {escape_markdown(row['action'], 2)}\\: `{row['count']}`\\n"
+        text += f"- {html.escape(row['action'])}: <code>{row['count']}</code>\n"
         
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2)
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.error("Exception while handling an update:", exc_info=context.error)
+    try:
+        if ADMIN_ID:
+            await context.bot.send_message(
+                chat_id=ADMIN_ID, 
+                text=f"🚨 <b>Bot Error</b>\n<pre>{html.escape(str(context.error))}</pre>", 
+                parse_mode=ParseMode.HTML
+            )
+    except Exception as e:
+        logger.error(f"Failed to send error to admin: {e}")
 
 async def post_init(application: Application):
     if DATABASE_URL:
@@ -275,15 +297,26 @@ def main() -> None:
                 CallbackQueryHandler(send_demo_content, pattern="^demo_"),
                 CallbackQueryHandler(handle_buy_or_admin, pattern="^talk_admin$|^buy_course$|^share_screenshot$"),
             ],
-            FORWARD_TO_ADMIN: [MessageHandler(filters.TEXT & ~filters.COMMAND, forward_to_admin)],
-            FORWARD_SCREENSHOT: [MessageHandler(filters.PHOTO, forward_screenshot_to_admin)],
+            FORWARD_TO_ADMIN: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, forward_to_admin),
+                MessageHandler(filters.ALL & ~filters.COMMAND, wrong_input_text)
+            ],
+            FORWARD_SCREENSHOT: [
+                MessageHandler(filters.PHOTO, forward_screenshot_to_admin),
+                MessageHandler(filters.ALL & ~filters.COMMAND, wrong_input_screenshot)
+            ],
         },
-        fallbacks=[CommandHandler("start", start)],
+        fallbacks=[
+            CommandHandler("start", start),
+            CommandHandler("cancel", cancel)
+        ],
     )
     application.add_handler(conv)
     application.add_handler(CommandHandler("stats", show_stats))
     application.add_handler(MessageHandler(filters.REPLY & filters.User(ADMIN_ID), reply_to_user))
     application.add_handler(MessageHandler(filters.REPLY & ~filters.COMMAND, handle_user_reply))
+    application.add_error_handler(error_handler)
+    
     application.run_polling()
 
 if __name__ == "__main__":
