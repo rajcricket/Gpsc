@@ -36,6 +36,7 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # --- Course Data ---
+# If you don't have an ID yet, use 0. DO NOT leave it blank like "mat_msg_id": }
 COURSES = {
     "c_gsssb": {
         "name": "GSSSB Non-Tech",
@@ -63,10 +64,10 @@ COURSES = {
 # --- Database Functions ---
 async def init_db(pool):
     async with pool.acquire() as conn:
+        # 1. Create tables if they don't exist
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
-                first_name TEXT,
                 joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS stats (
@@ -74,11 +75,16 @@ async def init_db(pool):
                 count INT DEFAULT 0
             );
         ''')
+        # 2. Patch the missing column issue dynamically
+        try:
+            await conn.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name TEXT;')
+        except Exception as e:
+            logger.warning(f"DB Alter check: {e}")
 
 async def track_user(pool, user_id, first_name):
     async with pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO users (user_id, first_name) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING",
+            "INSERT INTO users (user_id, first_name) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET first_name = EXCLUDED.first_name",
             user_id, first_name
         )
 
@@ -105,7 +111,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         [InlineKeyboardButton(COURSES["c_gpsc"]["name"], callback_data="c_gpsc")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    # Fixed SyntaxWarning by using raw string r""
+    
     welcome_text = fr"👋 Welcome, {escape_markdown(user.first_name, 2)}\!\n\nPlease select a course category below to begin:"
     
     if update.callback_query:
@@ -166,7 +172,7 @@ async def send_demo_content(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             await context.bot.copy_message(chat_id=update.effective_chat.id, from_chat_id=CHANNEL_ID, message_id=msg_id)
         except Exception as e:
             logger.error(f"Copy failed: {e}")
-            await query.message.reply_text("Sorry, the file could not be loaded.")
+            await query.message.reply_text("Sorry, the file could not be loaded. Please ensure the bot is an admin in the private channel.")
     return SELECTING_ACTION
 
 async def handle_buy_or_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -206,7 +212,7 @@ async def reply_to_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     orig = update.message.reply_to_message.text or update.message.reply_to_message.caption
     if orig and "(ID: " in orig:
         user_id = int(orig.split("(ID: ")[1].split(")")[0].replace('`', ''))
-        text = fr"👑 *Admin replied:*\n\n{escape_markdown(update.message.text, 2)}\n\n\\-\\-\\-\n_Reply to this message to chat back\._"
+        text = fr"👑 *Admin replied:*\n\n{escape_markdown(update.message.text, 2)}\n\n\-\-\-\n_Reply to this message to chat back\._"
         await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.MARKDOWN_V2)
         await update.message.reply_text("✅ Reply sent.")
 
