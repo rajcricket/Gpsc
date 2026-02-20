@@ -36,7 +36,6 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # --- Course Data ---
-# If you don't have an ID yet, use 0. DO NOT leave it blank.
 COURSES = {
     "c_gsssb": {
         "name": "GSSSB Non-Tech",
@@ -153,7 +152,6 @@ async def subject_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         [InlineKeyboardButton("⬅️ Back to Subjects", callback_data=course_key)]
     ]
     
-    # CRITICAL FIX: The '>' character is now properly escaped as '\>'
     text = f"📘 *{escape_markdown(course['name'], 2)} \\> {escape_markdown(subject['name'], 2)}*\\n\\nChoose an action below\\:"
     await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN_V2)
     return SELECTING_ACTION
@@ -169,7 +167,12 @@ async def send_demo_content(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await query.message.reply_text("Admin hasn't configured the demo links yet.")
     else:
         try:
-            await context.bot.copy_message(chat_id=update.effective_chat.id, from_chat_id=CHANNEL_ID, message_id=msg_id)
+            await context.bot.copy_message(
+                chat_id=update.effective_chat.id, 
+                from_chat_id=CHANNEL_ID, 
+                message_id=msg_id,
+                protect_content=True # <-- MAGIC BULLET: Prevents Forwarding and Downloading!
+            )
         except Exception as e:
             logger.error(f"Copy failed: {e}")
             await query.message.reply_text("Sorry, the file could not be loaded. Please ensure the bot is an admin in the private channel.")
@@ -193,28 +196,39 @@ async def handle_buy_or_admin(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.edit_message_text(text="Please send the screenshot of your payment now\\.", parse_mode=ParseMode.MARKDOWN_V2)
         return FORWARD_SCREENSHOT
 
+# --- PLAIN TEXT 2-WAY CHAT (CRASH PROOF) ---
 async def forward_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user, course = update.effective_user, context.user_data.get('selected_course', {'name': 'General Query'})
-    text = f"📩 *New Message*\\nFrom\\: {escape_markdown(user.first_name, 2)} \\(ID\\: `{user.id}`\\)\\nContext\\: *{escape_markdown(course['name'], 2)}*\\n\\n{escape_markdown(update.message.text, 2)}"
-    await context.bot.send_message(chat_id=ADMIN_ID, text=text, parse_mode=ParseMode.MARKDOWN_V2)
-    await update.message.reply_text("✅ Message sent to admin\\.", parse_mode=ParseMode.MARKDOWN_V2)
+    user = update.effective_user
+    course = context.user_data.get('selected_course', {'name': 'General Query'})
+    
+    # We use pure string formatting (NO ParseMode) to ensure it never crashes on weird user input
+    text = f"📩 New Message\nFrom: {user.first_name} (ID: {user.id})\nContext: {course['name']}\n\nMessage:\n{update.message.text}"
+    await context.bot.send_message(chat_id=ADMIN_ID, text=text)
+    
+    await update.message.reply_text("✅ Message sent to admin.")
     return await start(update, context)
 
 async def forward_screenshot_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user, course = update.effective_user, context.user_data.get('selected_course', {'name': 'Unknown'})
-    caption = f"📸 *Payment Screenshot*\\nFrom\\: {escape_markdown(user.first_name, 2)} \\(ID\\: `{user.id}`\\)\\nCourse\\: *{escape_markdown(course['name'], 2)}*\\n\\nReply to this with the private link\\."
-    await context.bot.send_photo(chat_id=ADMIN_ID, photo=update.message.photo[-1].file_id, caption=caption, parse_mode=ParseMode.MARKDOWN_V2)
-    await update.message.reply_text("✅ Screenshot received\\. Admin will review it shortly\\.", parse_mode=ParseMode.MARKDOWN_V2)
+    user = update.effective_user
+    course = context.user_data.get('selected_course', {'name': 'Unknown'})
+    
+    # Pure string, no markdown risk
+    caption = f"📸 Payment Screenshot\nFrom: {user.first_name} (ID: {user.id})\nCourse: {course['name']}\n\nReply to this with the private link."
+    await context.bot.send_photo(chat_id=ADMIN_ID, photo=update.message.photo[-1].file_id, caption=caption)
+    
+    await update.message.reply_text("✅ Screenshot received. Admin will review it shortly.")
     return await start(update, context)
 
 async def reply_to_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != ADMIN_ID or not update.message.reply_to_message: return
     orig = update.message.reply_to_message.text or update.message.reply_to_message.caption
+    
     if orig and "(ID: " in orig:
         try:
             user_id = int(orig.split("(ID: ")[1].split(")")[0].replace('`', ''))
-            text = f"👑 *Admin replied\\:*\\n\\n{escape_markdown(update.message.text, 2)}\\n\\n\\-\\-\\-\\n_Reply to this message to chat back\\._"
-            await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.MARKDOWN_V2)
+            # Pure text, no markdown format crashes
+            text = f"👑 Admin replied:\n\n{update.message.text}\n\n---\nReply to this message to chat back."
+            await context.bot.send_message(chat_id=user_id, text=text)
             await update.message.reply_text("✅ Reply sent.")
         except Exception as e:
             logger.error(f"Error extracting user ID: {e}")
@@ -222,10 +236,12 @@ async def reply_to_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def handle_user_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     replied = update.message.reply_to_message
     if replied and replied.from_user.is_bot and "Admin replied" in (replied.text or ""):
-        text = f"↪️ *Follow\\-up* from {escape_markdown(update.effective_user.first_name, 2)} \\(ID\\: `{update.effective_user.id}`\\)\\:\\n\\n{escape_markdown(update.message.text, 2)}"
-        await context.bot.send_message(chat_id=ADMIN_ID, text=text, parse_mode=ParseMode.MARKDOWN_V2)
+        # Pure text, no markdown
+        text = f"↪️ Follow-up from {update.effective_user.first_name} (ID: {update.effective_user.id}):\n\n{update.message.text}"
+        await context.bot.send_message(chat_id=ADMIN_ID, text=text)
         await update.message.reply_text("✅ Reply sent to admin.")
 
+# --- Stats & Boot ---
 async def show_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != ADMIN_ID: return
     pool = context.bot_data['db_pool']
