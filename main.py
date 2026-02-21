@@ -37,24 +37,24 @@ logger = logging.getLogger(__name__)
 # --- Course Data ---
 COURSES = {
     "c_gsssb": {
-        "name": "GSSSB Non-Tech",
-        "price": 499,
+        "name": "GSSSB Non-Tech and CCE",
+        "price": 199,
         "subjects": {
-            "s_maths": {"name": "Maths", "vid_msg_id": 3, "mat_msg_id": 99},
-            "s_reason": {"name": "Reasoning", "vid_msg_id": 33, "mat_msg_id": 100},
-            "s_polity": {"name": "Polity", "vid_msg_id": 47, "mat_msg_id": 1},
-            "s_env": {"name": "Environment", "vid_msg_id": 58, "mat_msg_id": 17},
-            "s_lang": {"name": "Language", "vid_msg_id": 62, "mat_msg_id": 19}
+            "s_maths": {"name": "Maths", "vid_msg_id": 3, "mat_msg_id": 100},
+            "s_reason": {"name": "Reasoning", "vid_msg_id": 33, "mat_msg_id": 99},
+            "s_polity": {"name": "Polity", "vid_msg_id": 47, "mat_msg_id": 0},
+            "s_env": {"name": "Environment", "vid_msg_id": 58, "mat_msg_id": 0},
+            "s_lang": {"name": "Language", "vid_msg_id": 62, "mat_msg_id": 0}
         }
     },
     "c_gpsc": {
         "name": "GPSC AE Civil",
-        "price": 999,
+        "price": 199,
         "subjects": {
-            "s_survey": {"name": "Surveying", "vid_msg_id": 20, "mat_msg_id": 21},
-            "s_enve": {"name": "Environment Engg", "vid_msg_id": 22, "mat_msg_id": 23},
-            "s_bim": {"name": "BIM", "vid_msg_id": 24, "mat_msg_id": 25},
-            "s_ecv": {"name": "ECV", "vid_msg_id": 26, "mat_msg_id": 27}
+            "s_survey": {"name": "Surveying", "vid_msg_id": 20, "mat_msg_id": 0},
+            "s_enve": {"name": "Environment Engg", "vid_msg_id": 22, "mat_msg_id": 0},
+            "s_bim": {"name": "BIM", "vid_msg_id": 24, "mat_msg_id": 0},
+            "s_ecv": {"name": "ECV", "vid_msg_id": 26, "mat_msg_id": 0}
         }
     }
 }
