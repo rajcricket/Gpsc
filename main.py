@@ -40,11 +40,11 @@ COURSES = {
         "name": "GSSSB Non-Tech",
         "price": 499,
         "subjects": {
-            "s_maths": {"name": "Maths", "vid_msg_id": 10, "mat_msg_id": 11},
-            "s_reason": {"name": "Reasoning", "vid_msg_id": 12, "mat_msg_id": 13},
-            "s_polity": {"name": "Polity", "vid_msg_id": 14, "mat_msg_id": 15},
-            "s_env": {"name": "Environment", "vid_msg_id": 16, "mat_msg_id": 17},
-            "s_lang": {"name": "Language", "vid_msg_id": 18, "mat_msg_id": 19}
+            "s_maths": {"name": "Maths", "vid_msg_id": 3, "mat_msg_id": 99},
+            "s_reason": {"name": "Reasoning", "vid_msg_id": 33, "mat_msg_id": 100},
+            "s_polity": {"name": "Polity", "vid_msg_id": 47, "mat_msg_id": 1},
+            "s_env": {"name": "Environment", "vid_msg_id": 58, "mat_msg_id": 17},
+            "s_lang": {"name": "Language", "vid_msg_id": 62, "mat_msg_id": 19}
         }
     },
     "c_gpsc": {
@@ -107,7 +107,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         [InlineKeyboardButton(COURSES["c_gpsc"]["name"], callback_data="c_gpsc")]
     ]
     
-    welcome_text = f"👋 Welcome, <b>{html.escape(user.first_name)}</b>!\n\nPlease select a course category below to begin:"
+    welcome_text = (
+        f"👋 Welcome, <b>{html.escape(user.first_name)}</b>!\n\n"
+        "<b>📖 How to use this platform:</b>\n"
+        "1. Select your target exam category below.\n"
+        "2. Choose a subject to view free demo lectures and study materials.\n"
+        "3. Purchase the full course to unlock complete preparation content.\n\n"
+        "🌟 <b>Note:</b> These courses feature premium, high-quality lectures from <b>Web Sankul Academy</b> to ensure top-tier preparation.\n\n"
+        "Please select a course category below to begin:"
+    )
     
     if update.callback_query:
         await update.callback_query.edit_message_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
@@ -116,7 +124,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return SELECTING_ACTION
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Allows the user to cancel any input state via /cancel"""
     await update.message.reply_text("Action cancelled. Returning to main menu.")
     return await start(update, context)
 
@@ -133,7 +140,11 @@ async def course_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     keyboard = [[InlineKeyboardButton(subj["name"], callback_data=f"subj_{course_key}_{sk}")] for sk, subj in course["subjects"].items()]
     keyboard.append([InlineKeyboardButton("⬅️ Back to Main Menu", callback_data="main_menu")])
     
-    text = f"📚 <b>{html.escape(course['name'])}</b>\n\nSelect a subject to view demos or materials:"
+    text = (
+        f"📚 <b>{html.escape(course['name'])}</b>\n\n"
+        "<b>What you will get:</b> Complete video lectures and high-quality PDF materials for all the subjects listed below.\n\n"
+        "Select a subject to explore free demos or proceed to purchase:"
+    )
     await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     return SELECTING_ACTION
 
@@ -155,31 +166,54 @@ async def subject_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         [InlineKeyboardButton("⬅️ Back to Subjects", callback_data=course_key)]
     ]
     
-    text = f"📘 <b>{html.escape(course['name'])} &gt; {html.escape(subject['name'])}</b>\n\nChoose an action below:"
+    text = (
+        f"📘 <b>{html.escape(course['name'])} &gt; {html.escape(subject['name'])}</b>\n\n"
+        "Evaluate the content quality before you commit. Watch the demo video or read the demo PDF provided by Web Sankul Academy.\n\n"
+        "Choose an action below:"
+    )
     await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     return SELECTING_ACTION
 
 async def send_demo_content(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    await query.answer()
     parts = query.data.split('_')
-    subject = COURSES[f"{parts[2]}_{parts[3]}"]["subjects"][f"{parts[4]}_{parts[5]}"]
+    course_key = f"{parts[2]}_{parts[3]}"
+    subj_key = f"{parts[4]}_{parts[5]}"
+    subject = COURSES[course_key]["subjects"][subj_key]
+    
     msg_id = subject["vid_msg_id"] if parts[1] == "vid" else subject["mat_msg_id"]
     
     if CHANNEL_ID == 0 or msg_id == 0:
-        await query.message.reply_text("Admin hasn't configured the demo links yet.")
-    else:
-        try:
-            # THIS SINGLE LINE PREVENTS FORWARDING AND DOWNLOADING 
-            await context.bot.copy_message(
-                chat_id=update.effective_chat.id, 
-                from_chat_id=CHANNEL_ID, 
-                message_id=msg_id,
-                protect_content=True 
-            )
-        except Exception as e:
-            logger.error(f"Copy failed: {e}")
-            await query.message.reply_text("Sorry, the file could not be loaded. Please ensure the bot is an admin in the private channel.")
+        # Check 1: Show alert if no demo is available
+        await query.answer("No demo available for this subject yet.", show_alert=True)
+        return SELECTING_ACTION
+    
+    await query.answer()
+    
+    try:
+        await context.bot.copy_message(
+            chat_id=update.effective_chat.id, 
+            from_chat_id=CHANNEL_ID, 
+            message_id=msg_id,
+            protect_content=True 
+        )
+        
+        # Check 2: Add 'Purchase full course' button after delivering demo
+        keyboard = [
+            [InlineKeyboardButton("🛒 Purchase Full Course", callback_data="buy_course")],
+            [InlineKeyboardButton("⬅️ Back to Subjects", callback_data=course_key)]
+        ]
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=f"Liked the demo? Unlock the complete Web Sankul Academy course for {html.escape(COURSES[course_key]['name'])} below:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.HTML
+        )
+
+    except Exception as e:
+        logger.error(f"Copy failed: {e}")
+        await query.message.reply_text("Sorry, the file could not be loaded. Please ensure the bot is an admin in the private channel.")
+    
     return SELECTING_ACTION
 
 async def handle_buy_or_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -189,12 +223,18 @@ async def handle_buy_or_admin(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.edit_message_text(text="Please type your message and send it. I will forward it to the admin.", parse_mode=ParseMode.HTML)
         return FORWARD_TO_ADMIN
     elif query.data == "buy_course":
-        course = context.user_data['selected_course']
+        course = context.user_data.get('selected_course')
+        if not course:
+            await query.edit_message_text("Session expired. Please start over using /start.")
+            return SELECTING_ACTION
+            
         keyboard = [[InlineKeyboardButton(f"💳 Pay ₹{course['price']} Now", url=RAZORPAY_LINK)],
                     [InlineKeyboardButton("✅ Already Paid? Share Screenshot", callback_data="share_screenshot")],
                     [InlineKeyboardButton("⬅️ Back", callback_data=context.user_data['back_to_course_key'])]]
         buy_text = f"✅ <b>Purchase {html.escape(course['name'])}</b>\n\n<b>Price: ₹{course['price']}</b>\n\nPay via Razorpay and share your screenshot here."
-        await query.edit_message_text(text=buy_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        
+        # We use send_message here in case this was triggered from the post-demo message (which we shouldn't edit away)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=buy_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         return SELECTING_ACTION
     elif query.data == "share_screenshot":
         await query.edit_message_text(text="Please send the screenshot of your payment now.", parse_mode=ParseMode.HTML)
@@ -229,7 +269,7 @@ async def forward_screenshot_to_admin(update: Update, context: ContextTypes.DEFA
     await update.message.reply_text("✅ Screenshot received. The admin will verify it and send you the access link soon.")
     return await start(update, context)
 
-# --- 2-Way Chat (Admin to User) ---
+# --- 2-Way Chat & Admin Broadcast ---
 async def reply_to_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != ADMIN_ID or not update.message.reply_to_message: return
     orig = update.message.reply_to_message.text or update.message.reply_to_message.caption
@@ -250,6 +290,43 @@ async def handle_user_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         text = f"↪️ <b>Follow-up</b> from {html.escape(update.effective_user.first_name)} (ID: <code>{update.effective_user.id}</code>):\n\n{html.escape(update.message.text)}"
         await context.bot.send_message(chat_id=ADMIN_ID, text=text, parse_mode=ParseMode.HTML)
         await update.message.reply_text("✅ Your reply has been sent to the admin.")
+
+# Check 3: Broadcast Command Logic
+async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id != ADMIN_ID:
+        return
+    
+    if not context.args:
+        await update.message.reply_text("⚠️ Usage: /broadcast <your message here>")
+        return
+        
+    message = " ".join(context.args)
+    pool = context.bot_data.get('db_pool')
+    
+    if not pool:
+        await update.message.reply_text("❌ Database not connected. Cannot fetch users.")
+        return
+        
+    async with pool.acquire() as conn:
+        users = await conn.fetch("SELECT user_id FROM users")
+        
+    if not users:
+        await update.message.reply_text("No users found in the database.")
+        return
+        
+    success_count = 0
+    for user in users:
+        try:
+            await context.bot.send_message(
+                chat_id=user['user_id'], 
+                text=f"📢 <b>Announcement:</b>\n\n{html.escape(message)}", 
+                parse_mode=ParseMode.HTML
+            )
+            success_count += 1
+        except Exception as e:
+            logger.warning(f"Failed to send broadcast to {user['user_id']}: {e}")
+            
+    await update.message.reply_text(f"✅ Broadcast complete. Successfully sent to {success_count}/{len(users)} users.")
 
 # --- System & Setup ---
 async def show_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -313,6 +390,7 @@ def main() -> None:
     )
     application.add_handler(conv)
     application.add_handler(CommandHandler("stats", show_stats))
+    application.add_handler(CommandHandler("broadcast", broadcast)) # Added Broadcast Command
     application.add_handler(MessageHandler(filters.REPLY & filters.User(ADMIN_ID), reply_to_user))
     application.add_handler(MessageHandler(filters.REPLY & ~filters.COMMAND, handle_user_reply))
     application.add_error_handler(error_handler)
