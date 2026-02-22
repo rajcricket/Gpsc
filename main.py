@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 COURSES = {
     "c_gsssb": {
         "name": "GSSSB Non-Tech and CCE",
-        "price": 199,
+        "price": 99,
         "subjects": {
             "s_maths": {"name": "Maths", "vid_msg_id": 3, "mat_msg_id": 99},
             "s_reason": {"name": "Reasoning", "vid_msg_id": 33, "mat_msg_id": 100},
@@ -49,7 +49,7 @@ COURSES = {
     },
     "c_gpsc": {
         "name": "GPSC AE Civil",
-        "price": 199,
+        "price": 99,
         "subjects": {
             "s_survey": {"name": "Surveying", "vid_msg_id": 68, "mat_msg_id": 0},
             "s_enve": {"name": "Environment Engg", "vid_msg_id": 81, "mat_msg_id": 0},
@@ -112,7 +112,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "<b>📖 How to use this platform:</b>\n"
         "1. Select your target exam category below.\n"
         "2. Choose a subject to view free demo lectures and study materials.\n"
-        "3. Purchase the full course to unlock complete preparation content.\n\n"
+        "3. Purchase to access full course in 99 ONLY, AFTER 28TH FEBRUARY IT WILL BE 200\n\n"
         "🌟 <b>Note:</b> These courses feature premium, high-quality lectures from <b>Web Sankul Academy</b> to ensure top-tier preparation.\n\n"
         "Please select a course category below to begin:"
     )
