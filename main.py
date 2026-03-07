@@ -28,7 +28,7 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 ADMIN_ID = int(os.environ.get("ADMIN_ID"))
 DATABASE_URL = os.environ.get("DATABASE_URL")
 CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "0"))
-RAZORPAY_LINK = "https://razorpay.me/@gateprep?amount=CVDUr6Uxp2FOGZGwAHntNg%3D%3D"
+RAZORPAY_LINK = "razorpay.me/@gateprep"
 
 # --- Logging Setup ---
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -77,7 +77,7 @@ COURSES = {
             "• Current affairs: Jan 2025 to Feb 2026"
         ),
         "subjects": {
-            "s_demo": {"name": "Watch Demo & View Material", "vid_msg_id": 0, "mat_msg_id": 0} # IMPORTANT: Update these 0s to actual IDs
+            "s_demo": {"name": "Watch Demo & View Material", "vid_msg_id": 125, "mat_msg_id": 126} # IMPORTANT: Update these 0s to actual IDs
         }
     }
 }
