@@ -56,6 +56,29 @@ COURSES = {
             "s_bim": {"name": "BIM", "vid_msg_id": 66, "mat_msg_id": 0},
             "s_ecv": {"name": "ECV", "vid_msg_id": 86, "mat_msg_id": 0}
         }
+    },
+    "c_gs2026": {
+        "name": "GS 2026 Selection Oriented (WebSankul)",
+        "price": 499,
+        "description": (
+            "<b>General Studies 2026 Selection Oriented Programme</b>\n\n"
+            "<b>Batch Highlights:</b>\n"
+            "• VIDEO LECTURES BY GUJARAT'S NO.1 FACULTY TEAM\n"
+            "• LECTURE NOTES PROVIDED IN PDF\n"
+            "• QUESTION PRACTICE BY FACULTIES DURING LECTURES\n"
+            "• EXTRA QUESTION PRACTICE - 300 QUESTIONS EACH SUBJECT\n"
+            "• 5-5 tests of each subject with analysis\n"
+            "• 30+ full length tests\n"
+            "• Lifetime validity\n\n"
+            "<b>Price:</b> Original 1999 + GST | <b>Our Price: ₹499 ONLY</b>\n\n"
+            "<b>Syllabus Coverage:</b>\n"
+            "• 200 Video Lectures (Maths, Reasoning, Art & Culture, Geography, General Science, Polity, History, Environment, etc.)\n"
+            "• Extra 50 lectures: English, Gujarati, Computer\n"
+            "• Current affairs: Jan 2025 to Feb 2026"
+        ),
+        "subjects": {
+            "s_demo": {"name": "Watch Demo & View Material", "vid_msg_id": 0, "mat_msg_id": 0} # IMPORTANT: Update these 0s to actual IDs
+        }
     }
 }
 
@@ -104,7 +127,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     
     keyboard = [
         [InlineKeyboardButton(COURSES["c_gsssb"]["name"], callback_data="c_gsssb")],
-        [InlineKeyboardButton(COURSES["c_gpsc"]["name"], callback_data="c_gpsc")]
+        [InlineKeyboardButton(COURSES["c_gpsc"]["name"], callback_data="c_gpsc")],
+        [InlineKeyboardButton(COURSES["c_gs2026"]["name"], callback_data="c_gs2026")]
     ]
     
     welcome_text = (
@@ -112,7 +136,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "<b>📖 How to use this platform:</b>\n"
         "1. Select your target exam category below.\n"
         "2. Choose a subject to view free demo lectures and study materials.\n"
-        "3. Purchase to access full course in 99 ONLY, AFTER 28TH FEBRUARY IT WILL BE 200\n\n"
+        "3. Purchase to access full course.\n\n"
         "🌟 <b>Note:</b> These courses feature premium, high-quality lectures from <b>Web Sankul Academy</b> to ensure top-tier preparation.\n\n"
         "Please select a course category below to begin:"
     )
@@ -140,11 +164,15 @@ async def course_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     keyboard = [[InlineKeyboardButton(subj["name"], callback_data=f"subj_{course_key}_{sk}")] for sk, subj in course["subjects"].items()]
     keyboard.append([InlineKeyboardButton("⬅️ Back to Main Menu", callback_data="main_menu")])
     
-    text = (
-        f"📚 <b>{html.escape(course['name'])}</b>\n\n"
-        "<b>What you will get:</b> Complete video lectures and high-quality PDF materials for all the subjects listed below.\n\n"
-        "Select a subject to explore free demos or proceed to purchase:"
-    )
+    if "description" in course:
+        text = f"📚 <b>{html.escape(course['name'])}</b>\n\n{course['description']}\n\nSelect below to explore free demos or proceed to purchase:"
+    else:
+        text = (
+            f"📚 <b>{html.escape(course['name'])}</b>\n\n"
+            "<b>What you will get:</b> Complete video lectures and high-quality PDF materials for all the subjects listed below.\n\n"
+            "Select a subject to explore free demos or proceed to purchase:"
+        )
+        
     await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     return SELECTING_ACTION
 
@@ -184,7 +212,6 @@ async def send_demo_content(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     msg_id = subject["vid_msg_id"] if parts[1] == "vid" else subject["mat_msg_id"]
     
     if CHANNEL_ID == 0 or msg_id == 0:
-        # Check 1: Show alert if no demo is available
         await query.answer("No demo available for this subject yet.", show_alert=True)
         return SELECTING_ACTION
     
@@ -198,9 +225,9 @@ async def send_demo_content(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             protect_content=True 
         )
         
-        # Check 2: Add 'Purchase full course' button after delivering demo
         keyboard = [
             [InlineKeyboardButton("🛒 Purchase Full Course", callback_data="buy_course")],
+            [InlineKeyboardButton("💬 Talk to Admin to Buy", callback_data="talk_admin")],
             [InlineKeyboardButton("⬅️ Back to Subjects", callback_data=course_key)]
         ]
         await context.bot.send_message(
@@ -233,7 +260,6 @@ async def handle_buy_or_admin(update: Update, context: ContextTypes.DEFAULT_TYPE
                     [InlineKeyboardButton("⬅️ Back", callback_data=context.user_data['back_to_course_key'])]]
         buy_text = f"✅ <b>Purchase {html.escape(course['name'])}</b>\n\n<b>Price: ₹{course['price']}</b>\n\nPay via Razorpay and share your screenshot here."
         
-        # We use send_message here in case this was triggered from the post-demo message (which we shouldn't edit away)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=buy_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         return SELECTING_ACTION
     elif query.data == "share_screenshot":
@@ -291,7 +317,6 @@ async def handle_user_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await context.bot.send_message(chat_id=ADMIN_ID, text=text, parse_mode=ParseMode.HTML)
         await update.message.reply_text("✅ Your reply has been sent to the admin.")
 
-# Check 3: Broadcast Command Logic
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != ADMIN_ID:
         return
@@ -390,7 +415,7 @@ def main() -> None:
     )
     application.add_handler(conv)
     application.add_handler(CommandHandler("stats", show_stats))
-    application.add_handler(CommandHandler("broadcast", broadcast)) # Added Broadcast Command
+    application.add_handler(CommandHandler("broadcast", broadcast)) 
     application.add_handler(MessageHandler(filters.REPLY & filters.User(ADMIN_ID), reply_to_user))
     application.add_handler(MessageHandler(filters.REPLY & ~filters.COMMAND, handle_user_reply))
     application.add_error_handler(error_handler)
